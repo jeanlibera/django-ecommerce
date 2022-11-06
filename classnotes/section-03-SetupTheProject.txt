@@ -1,0 +1,73 @@
+------------------------------------------------------
+Django Ecommerce
+Section 3 - Setup the Project
+------------------------------------------------------
+
+Full code on github:
+https://github.com/dev-rathankumar/greatkart-course
+
+7. Setup Virtual Environment
+----------------------------
+Setup up virtual environment:
+python -m venv .venv
+
+Activating your virtual environment:
+.\.venv\Scripts\activate.ps1
+
+8. Django installation
+----------------------
+Django installation:
+(In the course, they recommended using django 3)
+pip install django
+
+Create django project:
+django-admin startproject greatkart .
+
+11. Implement Bootstrap Template
+--------------------------------
+We need to run a command called collectstatic
+It will collect all files into the static folder at the root level 
+which contains all static files in the project:
+
+python manage.py collectstatic
+
+In settings.py:
+STATIC_URL = 'static/'
+
+STATIC_ROOT = BASE_DIR / 'static'
+STATICFILES_DIRS = [
+    'greatkart/static'
+]
+
+12. Making Base Template
+------------------------
+yourtemplate.html can extend base.html
+
+In base.html:
+{% block content %}
+  <!-- content -->
+{% endblock %}
+
+In subtemplate.html:
+{% extends 'base.html' %}
+
+{% block content %}
+  <!-- your content -->
+{% endblock content %}
+
+In addition, you can put a bunch of content in a separate file, and include it:.
+
+In includes/navbar.html, add a bunch of html.
+Then in base.html or subtemplate.html, do this:
+{% include 'includes/navbar.html' %}
+
+13. Full Project Code on GitHub
+-------------------------------
+Full code on github:
+https://github.com/dev-rathankumar/greatkart-course
+
+14. Download Practice Templates
+-------------------------------
+The practice templates, available as a resource in this section,
+could point the way to how to use different layouts for various screens.
+I bet they are using classes in bootstrap.
