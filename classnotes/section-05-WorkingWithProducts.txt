@@ -1,0 +1,153 @@
+------------------------------------------------------
+Django Ecommerce
+Section 5 - Working with Products
+------------------------------------------------------
+
+23 Store App & Product Model
+----------------------------
+Create a "store" app for the products:
+python manage.py startapp store
+
+Add it to settings.py
+INSTALLED_APPS = [
+    ...
+    'store'
+]
+
+class Product(models.Model):
+    product_name = models.CharField(max_length=200, unique=True)
+    ...
+    category = models.ForeignKey(Category, on_delete=models.CASCADE)
+	created_date = models.DateTimeField(auto_now_add=True)
+    modified_date = models.DateTimeField(auto_now=True)
+	
+What on_delete=models.CASCADE means is,
+when we delete a Category, all Products with that Category will be deleted.
+
+DateTimeField(auto_now_add=True) -- good for a created_date
+DateTimeField(auto_now=True)     -- good for last modified date
+
+25. Display Product in Homepage
+-------------------------------
+Old Views.py
+
+def home(request):
+    return render(request, 'home.html')
+
+New Views.py
+
+from store.models import Product
+def home(request):
+    products = Product.objects.all().filter(is_available=True)
+    context = {
+        'products': products
+    }
+    return render(request, 'home.html', context)
+
+Old templates\home.html:
+
+<div class="row">
+	<div class="col-md-3">
+		<div class="card card-product-grid">
+			<a href="./product-detail.html" class="img-wrap"> <img src="{% static 'images/items/1.jpg' %}"> </a>
+			<figcaption class="info-wrap">
+				<a href="./product-detail.html" class="title">Just another product name</a>
+				<div class="price mt-1">$179.00</div> <!-- price-wrap.// -->
+			</figcaption>
+		</div>
+	</div> <!-- col.// -->
+	<!-- repeat the column div section once per product -->
+</div> <!-- row.// -->
+
+New templates\home.html:
+
+<div class="row">
+	{% for product in products %}
+  <div class="col-md-3">
+		<div class="card card-product-grid">
+			<a href="./product-detail.html" class="img-wrap"> <img src="{{ product.image.url }}"> </a>
+			<figcaption class="info-wrap">
+				<a href="./product-detail.html" class="title">{{ product.product_name }}</a>
+				<div class="price mt-1">{{ product.price }}</div> <!-- price-wrap.// -->
+			</figcaption>
+		</div>
+	</div> <!-- col.// -->
+  {% endfor %}
+</div> <!-- row.// -->
+
+26. Make Store Page
+-------------------
+Created a store app
+
+Set up a store route.  It should be like this:
+127.0.0.1:8000/store/
+
+In the main urls.py, we added this:
+path('store/', include('store.urls'))
+
+Then in the store urls.py:
+urlpatterns = [
+    path('', views.store, name='store_page')
+] 
+
+Add a store.html file.
+At the top, add this:
+{% extends 'base.html' %}
+{% load static %}
+
+Also add
+{% block content %}
+{% endblock content %}
+
+Copy parts of store.html in the templaet, into the block content.
+
+Replace hard-coded images like this:
+<img src="images/items/1.jpg">
+with 
+<img src="{% static 'images/items/1.jpg' %}">
+
+This is just as a POC, to demonstrate the page works and we can get data from the static folder.
+
+27. Display Products in Store Page
+----------------------------------
+Static files are displayed in the html like this: 
+{% load static %}
+<img src="{% static 'images/items/1.jpg' %}">
+
+But media files are different.
+In the main django product, in urls.py:
+urlpatterns = [
+    ...
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+Then in the html file:
+<img src="{{ product.image.url }}">
+
+28. Display Products by Category
+--------------------------------
+Add this to  store\urls.py:
+
+urlpatterns = [
+    path('', views.store, name='store_page'),
+    path('<slug:category_slug>', views.store, name='products_by_category_page')
+] 
+
+According to the documentation, slug: is a converter specification.
+https://docs.djangoproject.com/en/4.1/ref/urls/
+https://docs.djangoproject.com/en/4.1/topics/http/urls/#how-django-processes-a-request
+
+Any Url which matches /store/<any text> ...
+will be sent to the view with the argument "category_slug" whose type is slug.
+
+In store\views.py:
+from django.shortcuts import render, get_object_or_404
+def store(request, category_slug=None):
+      if category_slug != None:
+        category = get_object_or_404(Category, slug=category_slug)
+        products = Product.objects.filter(category=category, is_available=True)
+
+Reminder:
+In django-masterclass, urls.py had this:
+	path('job/<int:job_id>', views.job_detail, name='job_detail_page')
+	
+	
