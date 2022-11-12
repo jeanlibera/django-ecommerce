@@ -1,0 +1,137 @@
+------------------------------------------------------
+Django Ecommerce
+Section 6 - Context Processors & Product Details
+------------------------------------------------------
+
+29. Make Context Processors for Displaying Categories on Navbar
+---------------------------------------------------------------
+
+A context processor is a python function. It takes the request as an argument.
+It returns a dictionary of data as a context.
+
+The Context Processor is a python file in Category:
+
+context_processors.py:
+
+from .models import Category
+
+def get_product_categories(request):
+    product_categories = Category.objects.all()
+    return dict(product_categories = product_categories)
+	
+You have to add this to settings.py:
+
+TEMPLATES = [
+    {
+        ...
+        'OPTIONS': {
+            'context_processors': [
+				...
+                'category.context_processors.get_product_categories'
+            ],
+
+Because we added it to TEMPLATES, it will be available in any html page we want.
+We will be using it in navbar.html.
+
+Since get_product_categories returned a dictionary with the key "product_categories", 
+we can use "product_categories" in navbar.html:
+
+  {% for category in product_categories %}
+	<a class="dropdown-item" href="{% url 'products_by_category' category.slug %}">
+	  {{ category.category_name }}
+	</a>
+  {% endfor %}
+  
+'products_by_category' is the name of the page in store's urls.py:
+
+In the "store" app:
+urlpatterns = [
+    path('', views.store, name='store_page'),
+    path('<slug:category_slug>', views.store, name='products_by_category')
+] 
+
+when we specify {% url 'products_by_category' category.slug %}, 
+what we get is links like this:
+	href="/store/shirts"
+	href="/store/t-shirts"
+	...
+
+An even better way to get the url is this:
+	href="{{ category.get_url }}">
+	
+And then, we define the function within Category:
+
+class Category(models.Model):
+    category_name = models.CharField(max_length=50, unique=True)
+    slug = models.SlugField(max_length=100, unique=True)
+    ...
+
+    def get_url(self):
+        return reverse('products_by_category', args=[self.slug])
+
+30. Display Categories in the Store page
+----------------------------------------
+
+We also want to add this method, which use {% url 'store_page' %}
+to get back to the store page for all products:
+	<li>
+	  <a href="{% url 'store_page' %}">
+		All Products
+	  </a>
+	</li>
+	
+31. Implement Product Detail Url and Design
+-------------------------------------------
+For the Product Detail page, the url should be
+/store/<category-slug>/<product-slug>
+
+32. Single Product View
+-----------------------
+In store/urls.py:
+    path('<slug:category_slug>/<slug:product_slug>/', views.product_detail, name='product_detail_page'),
+
+In views.py:
+def product_detail(request, category_slug, product_slug):
+    product = get_object_or_404(Product, slug=product_slug)
+    context = {
+        'product': product,
+    }
+    return render(request, 'store/product_detail.html', context)
+	
+Updated views.py:
+def product_detail(request, category_slug, product_slug):
+    try:
+        single_product = Product.objects.get(category__slug=category_slug, slug=product_slug)
+    except Exception as e:
+        raise e
+		
+	context = {
+        'single_product': single_product,
+    }
+    return render(request, 'store/product_detail.html', context)
+	
+The updated way uses page name lookup.
+To refer to a page name within the html, you can use {% url 'xxxx' %}
+
+Instead of 
+<a href="/"
+Use
+<a href="{% url 'home_page' %}"\
+
+35. Product Out of Stock Tag
+----------------------------
+If it's out of stock, show a different display, not Add to cart
+
+Original:
+    <a href="./product-detail.html" class="btn btn-primary"> 
+      <span class="text">Add to cart</span> <i class="fas fa-shopping-cart"></i>
+    </a>
+	
+Updated:
+  {% if single_product.stock <= 0 %}
+    <h5 class="text-danger">Out of stock</5>
+  {% else %}
+    <a href="./product-detail.html" class="btn btn-primary"> 
+      <span class="text">Add to cart</span> <i class="fas fa-shopping-cart"></i>
+    </a>
+  {% endif %}	
