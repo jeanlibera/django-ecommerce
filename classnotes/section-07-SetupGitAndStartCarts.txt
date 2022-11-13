@@ -1,0 +1,45 @@
+------------------------------------------------------
+Django Ecommerce
+Section 7 - Setup Git and Start Carts Functionality
+------------------------------------------------------
+
+36. Setup Git for Project
+-------------------------
+gitignore.io has useful starter .gitignore files for many types of projects
+He recommends adding media/
+I have a few media files in my project, but I'll add media/ so that more don't get added.
+Maybe I'll eventually remove the files I have.
+
+37. Carts App & Cart Page Design
+--------------------------------
+Create the app:
+python manage.py startapp carts
+
+Add it to settings.py, in INSTALLED_APPS
+
+Copy in cart.html from the template and fix it up.
+For broken images that we care about, like payments, instead of:
+<img src="./images/misc/payments.png" height="26">
+
+Update to:
+<img src="{% static './images/misc/payments.png' %}" height="26">
+
+38. Cart & Cart Item Models
+---------------------------
+from store.models import Product
+
+class Cart(models.Model):
+    cart_id = models.CharField(max_length=250, blank=True)
+    date_added = models.DateField(auto_now_add=True)
+
+    def __str__(self):
+        return self.cart_id
+
+class CartItem(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
+    quantity = models.IntegerField()
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.product

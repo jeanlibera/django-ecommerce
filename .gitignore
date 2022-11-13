@@ -2,7 +2,11 @@
 
 # python virtual env
 .venv/
+
+# Django
+media/
 db.sqlite3
+db.sqlite3-journal
 __pycache__/
 
 # dependencies
