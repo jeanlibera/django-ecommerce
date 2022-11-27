@@ -7,13 +7,15 @@ from .models import Cart, CartItem
 
 # Create your views here.
 
-def _get_cart_id(request):
+def get_cart_id(request):
     # use the session id for the cart id
     cart_id = request.session.session_key
-    if not cart:
-        print(f"Created a new cart id (really just the session key)"
+    if not cart_id:
+        print(f"Creating a new cart id (really just the session key)"
                " because the cart id did not exist")
-        cart_id = request.session.create()
+        request.session.create()
+        cart_id = request.session.session_key
+        print(f"In get_cart_id(), the new cart_id is {cart_id}")
     return cart_id
 
 def add_to_cart(request, product_id):
@@ -21,7 +23,7 @@ def add_to_cart(request, product_id):
     product = Product.objects.get(id=product_id)
 
     # get the cart
-    cart_id = _get_cart_id(request)
+    cart_id = get_cart_id(request)
     print(f"The cart id is {cart_id}")
     try:
         cart = Cart.objects.get(cart_id=cart_id)
@@ -55,7 +57,7 @@ def decrement_item_quantity(request, product_id):
     product = get_object_or_404(Product, id=product_id)
 
     # get the cart
-    cart_id = _get_cart_id(request)
+    cart_id = get_cart_id(request)
     print(f"The cart id is {cart_id}")
     cart = Cart.objects.get(cart_id=cart_id)
 
@@ -76,7 +78,7 @@ def remove_cart_item(request, product_id):
     product = get_object_or_404(Product, id=product_id)
 
     # get the cart
-    cart_id = _get_cart_id(request)
+    cart_id = get_cart_id(request)
     print(f"The cart id is {cart_id}")
     cart = Cart.objects.get(cart_id=cart_id)
 
@@ -88,8 +90,10 @@ def remove_cart_item(request, product_id):
     return redirect('cart_page')
 
 def cart(request, total=0, quantity=0, cart_items=None):
+    tax = 0
+    grand_total = 0
     try:
-        cart = Cart.objects.get(cart_id=_get_cart_id(request))
+        cart = Cart.objects.get(cart_id=get_cart_id(request))
         cart_items = CartItem.objects.filter(cart=cart, is_active=True)
 
         cart_item: CartItem

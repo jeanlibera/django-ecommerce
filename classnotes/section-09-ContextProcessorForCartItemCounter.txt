@@ -1,0 +1,133 @@
+------------------------------------------------------
+Django Ecommerce
+Section 9 - Fixing Cart Bugs & Context Processor for Cart Item Counter
+------------------------------------------------------
+
+44. Check for Empty Cart
+------------------------
+Change:
+...
+{% for cart_item in cart_items %}
+...
+{% endfor %}
+...
+
+To:
+{% if not cart_items %}
+  <h2 class="text-center">Your Shopping Cart is empty</h2>
+  <hr>
+  <div class="text-center">
+	<a href="{% url 'store_page' %}" class = "btn btn-primary">Continue shopping</a>
+  </div>
+{% else %}
+  ...
+  {% for cart_item in cart_items %}
+	...
+  {% endfor %}
+  ...
+{% endif %}
+
+According to the documentation, another possibility is
+https://docs.djangoproject.com/en/4.1/ref/models/querysets/#django.db.models.query.QuerySet.exists
+
+if some_queryset.exists():
+    print("There is at least one object in some_queryset")
+	
+vs
+
+if some_queryset:
+    print("There is at least one object in some_queryset")
+	
+To fix up Cart button, change from:
+	href="./cart.html"
+To:
+	href="{% url 'cart_page' %}"
+	
+href="./cart/" would work on the Home page, but not on the Cart page.
+href="{% url 'cart_page' %}" (reverse lookup) works on both pages.
+
+45. Click Add to Cart links
+---------------------------
+To get the Product name on the Cart page to redirect to the product page:
+
+{% for cart_item in cart_items %}
+...
+	<a href="{{ cart_item.product.get_url }}" class="title text-dark">
+		{{ cart_item.product.product_name }}
+	</a>
+...
+{% endfor %}
+
+46. Check if Product Added to Cart
+----------------------------------
+If the product is already to the cart, show the button "Added to cart" 
+instead of "Add to Cart" and add a View Cart button.
+
+How to see available fontawesome icons:
+https://fontawesome.com/search?o=r&m=free&f=classic
+
+To check if the item is already in the cart, on the product_detail page,
+in store.views.py, change product_detail to check the existence of the cart item using
+filter() and exists(). The code below sets in_cart to True or False:
+
+def product_detail(request, category_slug, product_slug):
+	...
+    in_cart = CartItem.objects.filter(
+            cart__cart_id=cart_id, product=single_product).exists()
+
+On the product_detail.html page, we are using different button classes and icons:
+
+{% if single_product.stock <= 0 %}
+    <h5 class="text-danger">Out of stock</h5>
+  {% elif in_cart %}
+  <a href="#" class="btn btn-success"> 
+    <span class="text">Added to Cart</span> <i class="fas fa-check"></i>
+  </a>
+  <a href="{% url 'cart_page' %}" class="btn btn-outline-primary">
+    <span class="text">View Cart</span> <i class="fas fa-eye"></i>
+  </a>
+  {% else %}
+    <a href="{% url 'add_to_cart' single_product.id %}" class="btn btn-primary"> 
+      <span class="text">Add to cart</span> <i class="fas fa-shopping-cart"></i>
+    </a>
+  {% endif %}
+  
+47. Counter Context Processor for Card Icon in Navbar
+-----------------------------------------------------
+We already added a context processor, category.context_processors.get_product_categories.
+We also added it to settings.py:
+TEMPLATES = [
+    {
+        ...
+        'OPTIONS': {
+            'context_processors': [
+                ...
+                'category.context_processors.get_product_categories'
+            ],
+        },
+    },
+]
+
+Similarly, we can add carts.context_processors.get_cart_item_count.
+get_cart_item_count returns a dictionary, with the key cart_item_count and your code refers
+to a key in the dictionary.
+
+Our context_processors.py function does this:
+	return dict(cart_item_count=item_count)
+
+Add this:
+TEMPLATES = [
+    {
+        ...
+        'OPTIONS': {
+            'context_processors': [
+                ...
+                'category.context_processors.get_product_categories',
+				'carts.context_processors.get_cart_item_count',
+            ],
+        },
+    },
+]
+	
+To refer to this within navbar.html:
+	<span class="badge badge-pill badge-danger notify">{{ cart_item_count }}</span>
