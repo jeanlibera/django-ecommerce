@@ -1,0 +1,186 @@
+------------------------------------------------------
+Django Ecommerce
+Section 10 - Paginator & Search
+------------------------------------------------------
+
+49. Paginator
+----------------------
+
+Documentation: Django Paginator
+
+from django.http import HttpRequest
+def listing(request: HttpRequest):
+    contact_list = Contact.objects.all()
+    paginator = Paginator(contact_list, 25) # Show 25 contacts per page.
+
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    return render(request, 'list.html', {'page_obj': page_obj})
+	
+{% for contact in page_obj %}
+    {# Each "contact" is a Contact model object. #}
+    {{ contact.full_name|upper }}<br>
+    ...
+{% endfor %}
+
+<div class="pagination">
+    <span class="step-links">
+        {% if page_obj.has_previous %}
+            <a href="?page=1">&laquo; first</a>
+            <a href="?page={{ page_obj.previous_page_number }}">previous</a>
+        {% endif %}
+
+        <span class="current">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
+        </span>
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}">next</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}">last &raquo;</a>
+        {% endif %}
+    </span>
+</div>
+
+Here's what we did for great_kart:
+
+def store(request:HttpRequest, category_slug:str|None=None):
+    category = None
+    products = None
+    
+    if category_slug != None:
+        print("store view for", type(category_slug), category_slug)
+        category = get_object_or_404(Category, slug=category_slug)
+        products = Product.objects.filter(category=category, is_available=True)
+    else:
+        print("store view for all products")
+        products = Product.objects.all().filter(is_available=True)
+
+    # Show 6 contacts per page.
+    paginator = Paginator(products, 3)
+    page_number = request.GET.get('page') # from the URL query parameter
+    page_obj: Page = paginator.get_page(page_number)
+    product_count = products.count()
+
+    context = {
+        'products_count': product_count,
+        'page_obj': page_obj,
+    }
+    return render(request, 'store/store.html', context)
+
+    {% if page_obj.has_other_pages %}
+      <ul class="pagination">
+        {% if page_obj.has_previous %}
+          <li class="page-item"><a href="?page={{ page_obj.previous_page_number }}" class="page-link">previous</a></li>
+        {% else %}
+          <li class="page-item disabled"><a href="#" class="page-link">previous</a></li>
+        {% endif %}
+
+        {% for page_number in page_obj.paginator.page_range %}
+          {% if page_number == page_obj.number %}
+            <li class="page-item active"><a class="page-link" href="#"> {{ page_number }} </a></li>
+          {% else %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_number}}"> {{ page_number }} </a></li>
+          {% endif %}
+        {% endfor %}
+        
+        {% if page_obj.has_next %}
+          <li class="page-item"><a href="?page={{ page_obj.next_page_number }}" class="page-link">next</a></li>
+        {% else %}
+          <li class="page-item disabled"><a href="#" class="page-link">next &raquo;</a></li>
+        {% endif %}
+      </ul>
+    {% endif %}
+	
+50. Fix warning
+---------------
+We are getting this warning:
+
+C:\sc\django-ecommerce\store\views.py:25: UnorderedObjectListWarning: Pagination may yield inconsistent results with an unordered object_list: <class 'store.models.Product'> QuerySet.
+  paginator = Paginator(products, 3)
+  
+To fix this, change from:
+  products = Product.objects.all().filter(is_available=True)
+to:
+  products = Product.objects.all().filter(is_available=True).order_by('product_name')
+  
+51. Search function
+-------------------
+Define the route, in store.urls.py:
+
+urlpatterns = [
+    path('', views.store, name='store_page'),
+    path('category/<slug:category_slug>/', views.store, name='products_by_category'),
+    path('category/<slug:category_slug>/<slug:product_slug>/', views.product_detail, name='product_detail_page'),
+	    path('search/', views.search, name='store_search'),
+] 
+  
+The search route has to come before the category/product route, otherwise django will think
+that "search" is the category.
+
+Another way to do it is, add category into the route, for the products_by_category.
+Because we have been using the page name (products_by_category, product_detail_page, etc.),
+we don't have do edit a bunch of href links.
+
+urlpatterns = [
+    path('', views.store, name='store_page'),
+    path('category/<slug:category_slug>/', views.store, name='products_by_category'),
+    path('category/<slug:category_slug>/<slug:product_slug>/', views.product_detail, name='product_detail_page'),
+    path('search/', views.search, name='store_search'),
+] 
+
+We want the url to look like this:
+/store/search/?keyword=MY-SEARCH-STRING
+
+The search textbox is part of a Form, with a Submit action.
+Change it to use the url for store_search, and the textbox should have the name "keyword"
+That is to match the parameter name for the URL (keyword=MY-SEARCH-STRING)
+
+      <form action="{% url 'store_search' %}" class="search" method="GET">
+        <div class="input-group w-100">
+            <input type="text" class="form-control" style="width:60%;"
+              placeholder="Search" name="keyword">
+            
+            <div class="input-group-append">
+              <button class="btn btn-primary" type="submit">
+                <i class="fa fa-search"></i>
+              </button>
+            </div>
+          </div>
+      </form> <!-- search-wrap .end// -->
+	  
+To implement search:
+
+def search(request: HttpRequest):
+    print("Started search")
+    params = request.GET
+    if 'keyword' in params:
+        keyword_value = params['keyword']
+        if keyword_value:  # if it is not empty
+            products = Product.objects.order_by('-created_date').filter(description__icontains=keyword_value)
+
+            paginator = Paginator(products, NUMBER_OF_PRODUCTS_PER_PAGE)
+            page_number = request.GET.get('page') # from the URL query parameter
+            page_obj: Page = paginator.get_page(page_number)
+            product_count = products.count()
+
+            context = {
+                'products_count': product_count,
+                'page_obj': page_obj,
+            }
+            return render(request, 'store/store.html', context)
+
+    return render(request, 'store/store.html')
+	
+For a more complex query, that looks at the description and the product_name, use Q:
+
+from django.db.models import Q
+products = Product.objects.order_by('-created_date').filter(
+			Q(description__icontains=keyword_value) | Q(product_name__icontains=keyword_value))
+			
+On the HTML page, show a different result if it's a search:
+
+    {% if 'search' in request.path %}
+      <h2 class="title-page">Search result</h2>
+    {% else %}
+      <h2 class="title-page">Our store</h2>
+    {% endif %}
