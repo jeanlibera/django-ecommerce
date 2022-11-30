@@ -1,14 +1,14 @@
 from django.core.exceptions import ObjectDoesNotExist
-from django.http import HttpRequest
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from store.models import Product
+from store.models import Product, Variation
 from .models import Cart, CartItem
 
 # Create your views here.
 
-def get_cart_id(request:HttpRequest):
+def get_cart_id(request:HttpRequest) -> str:
     # use the session id for the cart id
     cart_id = request.session.session_key
     if not cart_id:
@@ -21,7 +21,31 @@ def get_cart_id(request:HttpRequest):
 
 def add_to_cart(request:HttpRequest, product_id:int):
     print(f"Starting add_to_cart for product_id={product_id}")
-    product = Product.objects.get(id=product_id)
+    product=Product.objects.get(id=product_id)
+
+    product_variation = []
+    if request.method == 'POST':
+        input_values = ""
+        for item in request.POST:
+            key = item
+            value = request.POST[key]
+
+            try:
+                variation = Variation.objects.get(
+                    product=product,
+                    variation_category__iexact=key,
+                    variation_value__iexact=value)
+                product_variation.append(variation)
+                print(variation)
+                input_values += f"{key}={value}, "
+            except:
+                pass
+
+        return HttpResponse(input_values)
+        #color = request.POST['color']
+        #size = request.POST['size']
+        #print(f"Color={color}, Size={size}")
+        #return HttpResponse(f"Color={color}, Size={size}")
 
     # get the cart
     cart_id = get_cart_id(request)

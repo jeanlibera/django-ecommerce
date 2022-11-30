@@ -1,0 +1,255 @@
+------------------------------------------------------
+Django Ecommerce
+Section 11 - Starting Product Variations & Variation Manager
+------------------------------------------------------
+
+53. Product Variation Preparation
+---------------------------------
+When clicking Add to Cart, we want to choose a Color and a Size.
+We need to put these elements inside a form.
+
+Initially, we have hrefs like this:
+  <a href="{% url 'add_to_cart' single_product.id %}" class="btn btn-primary"> 
+	<span class="text">Add to cart</span> <i class="fas fa-shopping-cart"></i>
+  </a>
+  
+We need to add a <form> around all controls, and change from href to button.
+
+<form action="{% url 'add_to_cart' single_product.id %}" method="GET">
+  <button type="submit" class="btn btn-primary"> 
+	<span class="text">Add to cart</span> <i class="fas fa-shopping-cart"></i>
+  </button>
+</form>
+  
+There was concern that the colors buttons could get too large
+	(they were displayed in a single div or row)
+
+So instead of:
+	  <div class="item-option-select">
+		<h6>Choose Color</h6>
+		<div class="btn-group btn-group-sm btn-group-toggle" data-toggle="buttons">
+		  <label class="btn btn-light">
+			<input type="radio" name="radio_color"> Silver
+		  </label>
+		  <label class="btn btn-light">
+			<input type="radio" name="radio_color" > Gray
+		  </label>
+		  <label class="btn btn-light active">
+			<input type="radio" name="radio_color checked"> Gold
+		  </label>
+		  <label class="btn btn-light">
+			<input type="radio" name="radio_color"> Black
+		  </label>
+		</div> 
+	  </div>
+	  
+It was changed to a combo box instead:
+	  <div class="item-option-select">
+		<h6>Choose Color</h6>
+		<select name="color" class="form-control">
+		  <option value="red">Red</option>
+		  <option value="yellow">Yellow</option>
+		  <option value="blue">Blue</option>
+		  <option value="green">Green</option>
+		</select>
+	  </div>
+form-control is a Bootstrap class for a control within a form.
+
+And similarly for Size:
+	  <div class="item-option-select" >
+		<h6>Select Size</h6>
+		<select name="size" class="form-control">
+		  <option value="small">Small</option>
+		  <option value="medium">Medium</option>
+		  <option value="large">Large</option>
+		  <option value="extra_large">Extra Large</option>
+		</select>
+	  </div>
+	  
+Within add_to_cart() in carts.views.py, the color and size will be part of the URL
+because we are using GET for the form. It will look like this:
+/store/category/jeans/atx-jeans/?color=blue&size=small
+
+def add_to_cart(request:HttpRequest, product_id:int):
+    print(f"Starting add_to_cart for product_id={product_id}")
+    # sample url: /store/category/jeans/atx-jeans/?color=blue&size=small
+    color = request.GET['color']
+    size = request.GET['size']
+    print(f"Color={color}, Size={size}")
+
+54. Product Variation Model
+---------------------------
+Each product has colors and sizes.
+
+We will create a new Model in store.models.py:
+
+variation_category_choice = (
+    ( 'color', 'color' ),
+    ( 'size', 'size' ),
+)
+
+class Variation(models.Model):
+    # if the product is deleted, its Variations are deleted
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    variation_category = models.CharField(max_length=100, choices=variation_category_choice)
+    variation_value = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)
+    created_date = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.product
+		
+Also, in admin.py, register it, and define custom display:
+
+from .models import Variation
+
+class VariationAdmin(admin.ModelAdmin):
+    list_display = ('product', 'variation_category', 'variation_value', 'is_active')
+    list_editable = ('is_active',)
+    list_filter = ('product', 'variation_category', 'variation_value')
+
+admin.site.register(Variation, VariationAdmin)
+
+55. Product Variation Fetch Dynamic Color
+-----------------------------------------
+To get all the variation_values associated with a single product, you can use
+
+product.variation_set.all()
+
+https://docs.djangoproject.com/en/4.1/topics/db/queries/
+_set is used for reverse lookup.
+
+From the documentation:
+If a model has a ForeignKey, instances of the foreign-key model will have access to a Manager that returns all instances of the first model. By default, this Manager is named FOO_set, where FOO is the source model name, lowercased. This Manager returns QuerySets, which can be filtered and manipulated as described in the “Retrieving objects” section above.
+
+class Entry(models.Model):
+    blog = models.ForeignKey(Blog, on_delete=models.CASCADE)
+    headline = models.CharField(max_length=255)
+    body_text = models.TextField()
+    pub_date = models.DateField()
+    mod_date = models.DateField(default=date.today)
+    authors = models.ManyToManyField(Author)
+    number_of_comments = models.IntegerField(default=0)
+    number_of_pingbacks = models.IntegerField(default=0)
+    rating = models.IntegerField(default=5)
+	
+>>> b = Blog.objects.get(id=1)
+>>> b.entry_set.all()
+
+# b.entry_set is a Manager that returns QuerySets.
+>>> b.entry_set.filter(headline__contains='Lennon')
+>>> b.entry_set.count()
+
+In the product_detail.html, you can set the default color to empty with this:
+<select name="color" class="form-control" required>
+  <option value="" disabled selected>Select</option>
+  
+Also, you can show all variations in a list like this.
+For now, it includes colors and sizes.
+<select name="color" class="form-control" required>
+  <option value="" disabled selected>Select</option>
+  {% for variant in single_product.variation_set.all %}
+	<option value="{{ variant.variation_value }}">{{ variant.variation_value}} </option>
+  {% endfor %}
+  
+56. VariationManager for Variation Model
+----------------------------------------
+Create the VariationManager in models.py
+
+class VariationManager(models.Manager):
+    def colors(self):
+        return super(VariationManager, self).filter(
+            variation_category='color', is_active=True)
+
+    def sizes(self):
+        return super(VariationManager, self).filter(
+            variation_category='size', is_active=True)
+			
+Change the Variation model to indicate that VariationManager is its manager:
+
+class Variation(models.Model):
+    # if the product is deleted, its Variations are deleted
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    variation_category = models.CharField(max_length=100, choices=variation_category_choice)
+    variation_value = models.CharField(max_length=100)
+   ...
+
+    objects = VariationManager()
+	
+Now we can refer to colors and sizes in the html (or views.py):
+
+ <option value="" disabled selected>Select</option>
+  {% for variant in single_product.variation_set.colors %}
+	<option value="{{ variant.variation_value | lower }}">{{ variant.variation_value | capfirst }} </option>
+  {% endfor %}
+  
+We should change the form to POST
+We have to add {% crsf_token %}
+Which is a django authentication thing.
+
+def add_to_cart(request:HttpRequest, product_id:int):
+    print(f"Starting add_to_cart for product_id={product_id}")
+    if request.method == 'POST':
+        color = request.POST['color']
+        size = request.POST['size']
+        print(f"Color={color}, Size={size}")
+
+57. Get the Instance of Variation, Part 1
+-----------------------------------------
+What if there's a new variation, like brand or something else.
+Instead of color and size, loop through the values in the post request.
+For each key/value pair, check if it's an entry in the database:
+
+    if request.method == 'POST':
+        input_values = ""
+        for item in request.POST:
+            key = item
+            value = request.POST[key]
+
+            try:
+                variation = Variation.objects.get(variation_category__iexact=key,
+                    variation_value__iexact=value)
+                print(variation)
+                input_values += f"{key}={value}, "
+            except:
+                pass
+
+58. Get the Instance of Variation, Part 2
+-----------------------------------------
+In add_to_cart, instead of:
+	variation = Variation.objects.get(
+		product=product,
+		variation_category__iexact=key,
+		variation_value__iexact=value)
+
+also check for the product, and keep track of all variations that we find.
+    product_variation = []
+    if request.method == 'POST':
+        for item in request.POST:
+            key = item
+            value = request.POST[key]
+
+            try:
+                variation = Variation.objects.get(
+                    product=product,
+                    variation_category__iexact=key,
+                    variation_value__iexact=value)
+                product_variation.append(variation)
+                print(variation)
+            except:
+                pass
+
+We want to store the product variation in the cart item.
+Change cart.models.py:
+
+class CartItem(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    variations = models.ManyToManyField(Variation, blank=True)
+	...
+	
+Since we changed the model, run migration
+
+python manage.py makemigrations
+python manage.py migrate
+
+

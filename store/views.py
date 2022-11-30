@@ -4,13 +4,13 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render, get_object_or_404
 
 from category.models import Category
-from .models import Product
+from .models import Product, Variation
 from carts.views import get_cart_id
 from carts.models import CartItem
 
 # Create your views here.
 
-NUMBER_OF_PRODUCTS_PER_PAGE = 2
+NUMBER_OF_PRODUCTS_PER_PAGE = 3
 
 def store(request:HttpRequest, category_slug:str|None=None):
     category = None
@@ -41,6 +41,10 @@ def product_detail(request:HttpRequest, category_slug:str|None, product_slug:str
         cart_id = get_cart_id(request)
         in_cart = CartItem.objects.filter(
             cart__cart_id=cart_id, product=single_product).exists()
+        for variant in single_product.variation_set.all():
+            print(variant)
+        #color_variations = Variation.objects.filter(variation_category='color')
+        #size_variations = Variation.objects.filter(variation_category = 'size')
         print(f"In product detail, set in_cart={in_cart}")
     except Exception as e:
         raise e
@@ -48,6 +52,8 @@ def product_detail(request:HttpRequest, category_slug:str|None, product_slug:str
     context = {
         'single_product': single_product,
         'in_cart': in_cart,
+        #'color_variations': color_variations,
+        #'size_variations': size_variations,
     }
     return render(request, 'store/product_detail.html', context)
 
