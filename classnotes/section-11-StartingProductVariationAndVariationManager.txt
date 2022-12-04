@@ -120,7 +120,9 @@ https://docs.djangoproject.com/en/4.1/topics/db/queries/
 _set is used for reverse lookup.
 
 From the documentation:
-If a model has a ForeignKey, instances of the foreign-key model will have access to a Manager that returns all instances of the first model. By default, this Manager is named FOO_set, where FOO is the source model name, lowercased. This Manager returns QuerySets, which can be filtered and manipulated as described in the “Retrieving objects” section above.
+If a model has a ForeignKey, instances of the foreign-key model will have access to a Manager that returns all instances of the first model. 
+By default, this Manager is named FOO_set, where FOO is the source model name, lowercased. 
+This Manager returns QuerySets, which can be filtered and manipulated as described in the “Retrieving objects” section above.
 
 class Entry(models.Model):
     blog = models.ForeignKey(Blog, on_delete=models.CASCADE)
@@ -216,7 +218,7 @@ For each key/value pair, check if it's an entry in the database:
 
 58. Get the Instance of Variation, Part 2
 -----------------------------------------
-In add_to_cart, instead of:
+In add_to_cart(), instead of:
 	variation = Variation.objects.get(
 		product=product,
 		variation_category__iexact=key,
@@ -251,5 +253,3 @@ Since we changed the model, run migration
 
 python manage.py makemigrations
 python manage.py migrate
-
-

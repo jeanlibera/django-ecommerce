@@ -22,5 +22,13 @@ class CartItem(models.Model):
         return self.product.price * self.quantity
 
     def __str__(self):
-        return self.product.product_name
+        information_list: list = [self.product.product_name]
+        if self.variations:
+            variation: Variation
+            for variation in self.variations.all():
+                information_list.append(f"{variation.variation_category}={variation.variation_value}")
+        information_list.append(f"quantity={self.quantity}")
+        information = ", ".join(information_list)
+        return information
+        # return self.product.product_name
         

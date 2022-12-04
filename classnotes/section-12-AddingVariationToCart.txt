@@ -1,0 +1,188 @@
+------------------------------------------------------
+Django Ecommerce
+Section 12 - Adding the Variation in Cart, 
+             Grouping Cart Item Variations
+------------------------------------------------------
+
+59. Add Variation in Cart Item
+------------------------------
+
+We added a ManyToManyField to the Cart, for Product Variations.
+
+class CartItem(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    variations = models.ManyToManyField(Variation, blank=True)
+
+Now, we want to populate it. The code below is from add_to_cart()
+We are already getting a CartItem, one of these two ways:
+    cart_item = CartItem.objects.get(product=product, cart=cart)
+    cart_item = CartItem.objects.create(product=product, cart=cart, quantity=1)
+
+Now to add the product_variation to it:
+    if len(product_variation) > 0:
+        cart_item.product_variation.clear()
+        for variation in product_variation:
+            cart_item.variations.add(variation)
+    
+But this also makes the product_detail page more complicated.
+We can't just search for the Product and have an Added To Cart button,
+because that doesn't account for the product Variation.
+It's not perfect, but for now, if there are items in stock, just go back to
+a simple Add To Cart button.
+
+Notice that we added this, so that we only have one product variation list per cart item:
+    cart_item.product_variation.clear()
+
+Issues:
+* we can't buy two different varieties of the same item. 
+  Instead, when we pick a different variety, the quantity is increased and the variety of changed for both.
+* we should check if we have enough items in stock to add one more item.
+* we should check if the item is available.
+
+60. Grouping Cart Item Variations
+---------------------------------
+We want to have a new cart item, when we add the same product with a new variation.
+What we need to do is, check there is already a cart item with the product and that variation.
+
+Instead of:
+    if len(product_variation) > 0:
+        cart_item.variations.clear()
+        for variation in product_variation:
+            cart_item.variations.add(variation)
+    
+    if len(product_variation) > 0:
+        cart_item.variations.clear()
+        cart_item.variations.add(*product_variation)
+
+Anyway, in add_to_cart(), we are getting a list of Variation model objects,
+as shown above.
+
+The next thing to do is, get all cart items for the product. If there are no
+cart items, we simple add a new cart item.
+
+If there are cart items, we have to examine each one's variations. He uses
+
+cart_item.variations.all()
+
+But this returns a query set of variations. To convert it to a list of variations,
+he uses
+list(cart_item.variations.all())
+
+I think he could compare each lits of variations within the cart_items,
+with the product_variations list which was already retrieved from the POST request,
+and break out when there is a match.
+
+But instead, he does it like this:
+
+    # does the cart item exist?
+    cart_items_exist: bool = CartItem.objects.filter(product=product, cart=cart).exists()
+    if cart_items_exist:
+        cart_item_objects = CartItem.objects.filter(product=product, cart=cart)
+        # get the existing variations in the cart
+        # TODO: I think you could immediately compare list(existing_variation) to product_variation_list,
+        # and break out of the loop when they match. That would simplify the code below.
+        existing_variation_list = []
+        cart_item_id_list = []
+        for cart_item in cart_item_objects:
+            print("Examining cart item: ")
+            print(cart_item)
+            existing_variation = cart_item.variations.all()
+            # convert the query set to a list, so that it can eventually be compared to product_variation_list
+            existing_variation_list.append(list(existing_variation))
+            cart_item_id_list.append(cart_item.id)
+
+            print(f"Added {existing_variation} to the variation list")
+        print(f"The complete variation list: {existing_variation_list}")
+        
+        if product_variation_list in existing_variation_list:
+            print(f"Found the product {product.product_name} with variation {product_variation_list} in the existing list, and will increase the quantity")
+            # increase the cart item quantity
+            index = existing_variation_list.index(product_variation_list)
+            item_id = cart_item_id_list[index]
+            item = CartItem.objects.get(product=product, id=item_id)
+            item.quantity += 1
+            item.save()
+            
+        else:
+            # create a new cart item
+            print("There are cart items for this product, but they do not have matching variations")
+            cart_item: CartItem = CartItem.objects.create(product=product, cart=cart, quantity=1)
+            # If there are product variations, add them to the cart item
+            if len(product_variation_list) > 0:
+                cart_item.variations.clear()
+                cart_item.variations.add(*product_variation_list)
+            print(f"Creating a new cart item for {product.product_name} with variation {product_variation_list}, quantity is 1")
+            cart_item.save()
+
+    else:
+        print("There are no existing cart items for this product.")
+        cart_item: CartItem = CartItem.objects.create(
+            product=product,
+            cart=cart,
+            quantity=1)
+        # If there are product variations, add them to the cart item
+        if len(product_variation_list) > 0:
+            cart_item.variations.clear()
+            cart_item.variations.add(*product_variation_list)
+        print(f"Creating a new cart item for {product.product_name}, quantity is 1")
+        cart_item.save()
+
+    # redirect the user to the cart page
+    cartUrl = reverse('cart_page')
+    print("redirecting to", cartUrl)
+    return redirect(cartUrl)
+
+
+61. Cart increment/Decrement/Remove with Variations
+---------------------------------------------------
+For the + button
+----------------
+He is putting the add_to_cart link (for the + button) into a form.
+There is a separate form for each cart item's + button.
+The form contains hidden input elements for the cart variation.
+(Note: another way to do it, is have a new function,
+increment_item_quantity, that takes a cart_item_id.
+Maybe cart_item_id would be a hidden <input>.)
+
+Old:
+    <a href={% url 'add_to_cart' cart_item.product.id %} 
+        class="btn btn-light" type="button" id="button-minus"> 
+      <i class="fa fa-plus"></i>
+    </a>
+New:
+    <form action="{% url 'add_to_cart' cart_item.product.id %}" method=POST>
+      {% csrf_token %}
+      {% for variation in cart_item.variations.all %}
+        <input type="hidden" name="{{ variation.variation_category | lower }}" value = "{{ variation.variation_value }}">
+      {% endfor %}
+      <button class="btn btn-light" type="submit" id="button-minus"> <i class="fa fa-plus"></i> </button>
+    </form>
+
+When switching from link to button:
+* You need to add {% csrf_token %}
+* You need to specify type="submit" for the button element
+
+For the - button
+----------------
+Change the view function, decrement_item_quantity(), to include cart_item_id
+as an addition argument.
+
+<a href={% url 'decrement_item_quantity' cart_item.product.id cart_item.id %} 
+        class="btn btn-light" type="button" id="button-plus"> 
+    <i class="fa fa-minus"></i>
+</a>
+
+modify the path in urls.py to include cart_item_id:
+    path('decrement_item_quantity/<int:product_id>/<int:cart_item_id>', views.decrement_item_quantity, name='decrement_item_quantity'),
+
+In decrement_item_quantity(), also specify cart_item_id when getting the cart item:
+    cart_item = CartItem.objects.get(product=product, cart=cart, id=cart_item_id)
+
+For the Remove button
+---------------------
+Fix it similar to the - button, by changing the url.
+
+We can also add a confirm box in the link:
+    <a href="{% url 'remove_cart_item' cart_item.product.id cart_item.id %} "
+        onclick="return confirm('Are you sure you want to delete this item?')"
+        class="btn btn-danger">Remove</a>
