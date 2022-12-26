@@ -1,0 +1,440 @@
+------------------------------------------------------
+Django Ecommerce
+Section 13 - Registration and Login
+             Token Based Verification & Message Alerts
+------------------------------------------------------
+
+What we have done so far:
+* We have an accounts django app.
+* In the accounts app, in models.py, we implemented 
+  class Account(AbstractBaseUser):
+* In class Account, we have the setting:
+  USERNAME_FIELD = 'email'
+* In the django project's settings.py, we have
+  AUTH_USER_MODEL = 'accounts.Account'
+* The cumulative effect is, you log in with your email address,
+  not with your username.
+
+63. Registration Preparation: Setting Up Urls & Design
+------------------------------------------------------
+We will have a registration process where we send an email to the user.
+When he clicks on the link, then the account will be verified.
+
+Registration takes place in the accounts app.
+
+In accounts.urls.py (in accounts app):
+
+from django.urls import path
+from . import views
+urlpatterns = [
+    path('register/', views.register, name='register_page'),
+    path('login/', views.login, name='login_page'),
+    path('logout/', views.logout, name='logout_page'),    
+]
+
+In greatkart.urls.py (in main django project):
+
+    path('accounts/', include('accounts.urls')),
+
+Define initial views:
+
+def register(request:HttpRequest):
+    return render(request, 'accounts/register.html')
+
+def login(request:HttpRequest):
+    return render(request, 'accounts/login.html')
+
+def logout(request:HttpRequest):
+    return
+
+Create these templates:
+
+* accounts/register.html
+* accounts/login.html
+
+Add links to these templates on the navbar
+<a href="{% url 'login_page' %}">Sign in</a>
+<a href="{% url 'register_page' %}"> Register</a>
+
+Copy register.html from the bootstrap template.
+
+Replace header and footer elements, and place this around the content:
+
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %} 
+
+{% endblock content %}
+
+You could the <form> element to refer to a django view:
+  <form {% url 'register_page' %} method="POST">
+    {% csrf_token %}
+    
+We are going to use a django ModelForm, for the Account model.
+In django documentation, search for ModelForm.
+In accounts, create forms.py.
+
+from django import forms
+from .models import Account
+
+class RegistrationForm(forms.ModelForm):
+    class Meta:
+        model = Account
+        fields = ['first_name', 'last_name', 'phone_number', 'email', 'password']
+        
+We intentionally skipped username. username will be generated based on
+the password.
+
+Use the RegistrationForm in the view:
+
+from .forms import RegistrationForm
+
+def register(request:HttpRequest):
+    form = RegistrationForm()
+    context = {
+        'registration_form': form
+    }
+    return render(request, 'accounts/register.html', context)
+    
+To display the ModelForm values:
+
+<form {% url 'register_page' %} method="POST">
+{% csrf_token %}
+{{ registration_form.as_p }}
+
+64. Implementing Model Forms and Editing __init__ Method
+--------------------------------------------------------
+
+The formatting for this is OK, but not good enough for a 
+production-quality web site:
+
+{{ registration_form.as_p }}
+
+We want to specify css classes so that it looks nice.
+
+The original register.html in our template used
+
+    <div class="form-row">
+      <div class="col form-group">
+        <label>First name</label>
+          <input type="text" class="form-control" placeholder="">
+      </div> <!-- form-group end.// -->
+      <div class="col form-group">
+        <label>Last name</label>
+          <input type="text" class="form-control" placeholder="">
+      </div> <!-- form-group end.// -->
+    </div> <!-- form-row end.// -->
+        
+So we can refer to properties like:
+{{ registration_form.first_name }}
+
+This isn't the actual first name. It's a form field based on the
+model property, Account.first_name.
+
+So what we do is, in place of each input element, use the 
+appropriate model form property. 
+For example, in the code block above:
+
+    <div class="form-row">
+      <div class="col form-group">
+        <label>First name</label>
+        {{ registration_form.first_name }}
+      </div> <!-- form-group end.// -->
+      <div class="col form-group">
+        <label>Last name</label>
+        {{ registration_form.last_name }}
+      </div> <!-- form-group end.// -->
+    </div> <!-- form-row end.// -->
+    
+We can make similar changes for email and phone number.
+
+For password, we want the user to enter the password and
+also to repeat it. To handle this, change RegistrationForm.py:
+
+class RegistrationForm(forms.ModelForm):
+    password = forms.CharField(widget=forms.PasswordInput(attrs={
+        'placeholder': 'Enter password'
+        }))
+    confirm_password = forms.CharField(widget=forms.PasswordInput(attrs={
+        'placeholder': 'Confirm password'
+        }))
+    class Meta:
+        model = Account
+        fields = ['first_name', 'last_name', 'phone_number', 'email', 'password']
+        
+Now, we can use {{ registration_form.password }} and
+{{ registration_form.confirm_password }}:
+
+    <div class="form-row">
+      <div class="form-group col-md-6">
+        <label>Create password</label>
+        {{ registration_form.password }}
+      </div> <!-- form-group end.// --> 
+      <div class="form-group col-md-6">
+        <label>Repeat password</label>
+        {{ registration_form.confirm_password }}
+      </div> <!-- form-group end.// -->  
+    </div>
+    
+Now, let's add the css class. We want to use "form-control".
+For password and confirm_password, add the property to the attributes.
+
+For password:
+
+    password = forms.CharField(widget=forms.PasswordInput(attrs={
+        'placeholder': 'Enter password',
+        'class': 'form-control'
+        }))
+    confirm_password = forms.CharField(widget=forms.PasswordInput(attrs={
+        'placeholder': 'Confirm password'
+        'class': 'form-control'
+        }))
+
+For the other fields, we could create similar code, e.g.
+
+    first_name = forms.CharField(...)
+    
+but there's a way to give a css class to all the fields.
+
+class RegistrationForm(forms.ModelForm):
+    ...
+    
+    def __init__(self, *args, **kwargs):
+        super(RegistrationForm, self).__init__(*args, **kwargs)
+        for field in self.fields:
+            self.fields[field].widget.attrs['class'] = 'form-control'
+
+In fact, with this code we don't really need to set 'class'
+for password and confirm_password. We could  go back to:
+
+    password = forms.CharField(widget=forms.PasswordInput(attrs={
+        'placeholder': 'Enter password'
+        }))
+    confirm_password = forms.CharField(widget=forms.PasswordInput(attrs={
+        'placeholder': 'Confirm password'
+        }))
+
+And you can also set the placeholder values for other fields.
+
+The final code for __init__ is:
+
+    def __init__(self, *args, **kwargs):
+        super(RegistrationForm, self).__init__(*args, **kwargs)
+        self.fields['first_name'].widget.attrs['placeholder'] = 'Enter first name'
+        self.fields['last_name'].widget.attrs['placeholder'] = 'Enter last name'
+        self.fields['phone_number'].widget.attrs['placeholder'] = 'Enter phone number'
+        self.fields['email'].widget.attrs['placeholder'] = 'Enter email address'
+        for field in self.fields:
+            self.fields[field].widget.attrs['class'] = 'form-control'
+            
+65. Registration: Making View & Editing Model Form & Checking Passwords
+-----------------------------------------------------------------------
+When handling the POST method, all fields in the form come back.
+To access them:
+def register(request:HttpRequest):
+    if request.method == 'POST':
+        form = RegistrationForm(request.POST)
+        if form.is_valid():
+            first_name = form.cleaned_data['first_name']
+            last_name = form.cleaned_data['last_name']
+            ...
+            
+To check for passwords, we are going to to override Form.clean(),
+in the RegistrationForm class.
+If there is an error, we raise a django.forms.ValidationError.
+
+    def clean(self):
+        cleaned_data = super(RegistrationForm, self).clean()
+        password = cleaned_data.get('password')
+        confirm_password = cleaned_data.get('confirm_password')
+
+        if password != confirm_password:
+            raise forms.ValidationError("Password does not match.")
+
+In register.html, one way to display the error is like this:
+{{ registration_form.errors }}
+that displays this:
+  * __all__
+     * Password does not match
+     
+This is not a field-specific error, so one way to get better output is like thiS:     
+{{ registration_form.non_field_errors }}
+
+That displays this:
+  * Password does not match
+  
+There are only 2 types of errors. One type of error is, the 
+passwords don't match.
+
+The other type of error is a problem with the email, if someone
+else already has this email.
+A better way to show that is with a field-specific error:
+{{ registration_form.email.errors }}
+
+So in the end, we need both of these:
+  {{ registration_form.email.errors }}
+  {{ registration_form.non_field_errors }}
+  
+66. Django Message Alerts
+-------------------------
+Reference: Django message documentation:
+https://docs.djangoproject.com/en/4.1/ref/contrib/messages/
+
+By default, the djange messaging app is already available,
+in settings.py:
+INSTALLED_APPS = {
+    "django_contrib_messages"
+}
+
+As described in the documentation, you have to define the MESSAGE_TAGS
+you want to use in settings.py:
+from django.contrib.messages import constants as messages
+MESSAGE_TAGS = {
+    messages.INFO: '',
+    50: 'critical',
+}
+
+And we actually used this:
+MESSAGE_TAGS = {
+    messages.ERROR: 'danger',
+}
+
+To display the messages, do this in your template:
+
+{% if messages %}
+<ul class="messages">
+    {% for message in messages %}
+    <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>
+        {% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}Important: {% endif %}
+        {{ message }}
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+We put this code in a separate include file, alerts.html.
+
+Then to display the messages in the registration form:
+  {% include 'includes/alerts.html' %}
+
+We used this to display a success message, when registration succeeds:
+
+from django.contrib import messages
+def register(request:HttpRequest):
+    if request.method == 'POST':
+        form = RegistrationForm(request.POST)
+        if form.is_valid():
+            first_name = form.cleaned_data['first_name']
+            ...
+            user.save()
+            messages.success(request, 'Registration was successful')
+            return redirect('register_page')
+    ...
+    
+Improve hte formatting like this:
+
+{% if messages %}
+  <div id="message">
+    {% for message in messages %}
+    <div {% if message.tags %} class="alert alert-{{ message.tags }}"{% endif %} role="alert">
+      <button type="button" class="close" data-dismiss="alert"><span aria-hidden="true">
+        &times;
+      </span></button>  
+      {% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}Important: {% endif %}
+        {{ message }}
+    </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+&times;  is the x at the right, which you click on to close the message.
+
+If you want the message to close automatically after some number of seconds,
+we can add jquery code, to greatkart/static/script.js.
+Put it at the end of the file. Note: 5000 = 5 seconds.
+
+// for the element with id="message"
+// fade out after 4 seconds
+setTimeout(function() {
+    $('#message').fadeOut('slow')
+}, 4000)
+
+66. User Login Functionality
+-----------------------------------------------------------------------
+We are starting with signin.html from the template and modifying it.
+
+This is an oridinary form, not a model form.
+We need to add a name to each control, so that we can get it from the POST request.
+
+<div class="form-group">
+  <input type="email" class="form-control" placeholder="Email Address" name="email" >
+</div> <!-- form-group// -->
+
+<div class="form-group">
+  <input type="password" class="form-control" placeholder="Password" name="password">
+</div> <!-- form-group// -->
+
+Now we can get the values like this:
+
+    if request.method == 'POST':
+        print("The method is POST")
+        email = request.POST['email']
+        password = request.POST['password']
+    
+To authenticate and log in, we need this additional code.
+Note how we are displaying an error using alerts.html
+
+    user = auth.authenticate(email=email, password=password)
+    if user is not None:
+        auth.login(request, user)
+        # messages.success(request, 'You are now logged in')
+        print("Login succeeded")
+        return redirect("home_page")
+    else:
+        messages.error(request, "Invalid login credentials")
+        return redirect("login_page")
+
+Now let's implement login.
+Once the user is logged in, the django makes the user object
+available to all your html templates.
+So we can use user anywhere in any template.
+
+We can add this te navbar.html:
+
+  {% if user.id is None %}
+    <div class="widget-header">
+      <small class="title text-muted">Welcome guest!</small>
+      <div> 
+        <a href="{% url 'login_page' %}">Sign in</a> <span class="dark-transp"> | </span>
+        <a href="{% url 'register_page' %}"> Register</a>
+      </div>
+    </div>
+  {% else %}
+  <div class="widget-header">
+    <small class="title text-muted">Welcome {{ user.first_name }}</small>
+    <div> 
+      <a href="{% url 'home_page' %}">Dashboard</a> <span class="dark-transp"> | </span>
+      <a href="{% url 'logout_page' %}">Log Out</a>
+    </div>
+  </div>
+  {% endif %}
+  
+For logut, in views.py:
+
+from django.contrib.auth.decorators import login_required
+@login_required(login_url = 'login_page')
+def logout(request:HttpRequest):
+    auth.logout(request)
+    messages.success(request, "You are logged out")
+    return redirect("login_page")
+        
+It automatically logs out the current user.
+We don't have to pass in user.id as part of the request.
+
+The decorator, @login_required, checks that the user is logged in.
+If not, the user is redirected to the login_page (url).
+Note that to test this, you have to enter this, when the user
+is not logged in:
+
+  http://127.0.0.1:8000/accounts/logout/

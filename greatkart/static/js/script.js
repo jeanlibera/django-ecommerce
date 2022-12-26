@@ -58,3 +58,9 @@ $(document).ready(function() {
 }); 
 // jquery end
 
+// for the element with id="message"
+// fade out after 4 seconds
+setTimeout(function() {
+    $('#message').fadeOut('slow')
+}, 4000)
+

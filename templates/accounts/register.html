@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block content %} 
+
+<!-- ========================= SECTION CONTENT BEGIN// ========================= -->
+<section class="section-content padding-y">
+
+<!-- =========================== COMPONENT REGISTER BEGIN// ================================ -->
+  <div class="card mx-auto" style="max-width:520px; margin-top:40px;">
+    <article class="card-body">
+      {% include 'includes/alerts.html' %}
+
+      <header class="mb-4"><h4 class="card-title">Sign up</h4></header>
+      <form action="{% url 'register_page' %}" method="POST">
+        {% csrf_token %}
+
+        <!-- Row - first name and last name -->
+        <div class="form-row">
+          <div class="col form-group">
+            <label>First name</label>
+            {{ registration_form.first_name }}
+          </div> <!-- form-group end.// -->
+          <div class="col form-group">
+            <label>Last name</label>
+            {{ registration_form.last_name }}
+          </div> <!-- form-group end.// -->
+        </div> <!-- form-row end.// -->
+
+        <!-- Row - Email and Phone Number -->
+        <div class="form-row">
+          <div class="form-group col-md-6">
+            <label>Email Address</label>
+            {{ registration_form.email }}
+          </div> <!-- form-group end.// -->
+          <div class="form-group col-md-6">
+            <label>Phone Number</label>
+            {{ registration_form.phone_number }}
+          </div> <!-- form-group end.// -->
+          
+        </div> <!-- form-row.// -->
+
+        <!-- Row - Password -->
+        <div class="form-row">
+          <div class="form-group col-md-6">
+            <label>Create password</label>
+            {{ registration_form.password }}
+          </div> <!-- form-group end.// --> 
+          <div class="form-group col-md-6">
+            <label>Repeat password</label>
+            {{ registration_form.confirm_password }}
+          </div> <!-- form-group end.// -->  
+        </div>
+
+        <small class="form-text text-muted">We'll never share your phone number or email with anyone else.</small><!-- form-group end.// -->
+        <!-- Register button (submit) -->
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary btn-block"> Register  </button>
+        </div> <!-- form-group// -->
+      
+        {{ registration_form.email.errors }}
+        {{ registration_form.non_field_errors }}
+      </form>
+    </article><!-- card-body.// -->
+  </div> <!-- card .// -->
+    <p class="text-center mt-4">Have an account? <a href="{% url 'login_page' %}">Log In</a></p>
+    <br><br>
+<!-- ============================ COMPONENT REGISTER  END.// ================================ -->
+
+</section>
+<!-- ========================= SECTION CONTENT END// ========================= -->
+
+{% endblock content %}
