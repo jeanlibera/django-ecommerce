@@ -112,7 +112,7 @@ We get an error, but that's expected. What's important is,
 it created a new database (db.sqlite3).
 
 Stop the server and create new migrations.
-python manage.py makemigration
+python manage.py makemigrations
 python manage.py migrate
 
 Then create a new superuser

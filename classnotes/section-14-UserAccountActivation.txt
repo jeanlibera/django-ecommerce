@@ -1,0 +1,260 @@
+------------------------------------------------------
+Django Ecommerce
+Section 14 - User Account Activation & 
+             Activation Link Expiry
+------------------------------------------------------
+
+68. Account Activation - Encode User PK & Send Token Based Activation Link
+--------------------------------------------------------------------------
+We are going to send a verification email to the user with an activation link.
+The activation link will contain a token. The link will automatically expire
+after the verification is done. This is the safest way to activate the user.
+
+To add user activation to the accounts.views.register() function:
+
+# new imports needed:
+from django.contrib.sites.shortcuts import get_current_site
+from django.template.loader import render_to_string
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes
+from django.contrib.auth.tokens import default_token_generator
+from django.core.mail import EmailMessage
+
+def register(request):
+    ...
+	user: Account = Account.objects.create_user(...)
+	user.phone_number = phone_number
+	user.save()
+	
+    # compose the user activation email
+    current_site = get_current_site(request)
+	mail_subject = 'Please activate your account'
+	# the properties are objects that can be used in the html template, 
+	# accounts/account_verification_email.html
+	message = render_to_string('accounts/account_verification_email.html', {
+		'user': user,
+		'domain': current_site,
+		# we are encoding the user id with base64 encoding
+		'uid': urlsafe_base64_encode(force_bytes(user.pk)),
+		'token': default_token_generator.make_token(user),
+	})
+	# send the email
+	to_email = email
+	send_email = EmailMessage(mail_subject, message, to=[to_email])
+	send_email.send()
+	
+	# generate token
+	
+In the template html file, we use 
+{% autoescape off %}
+... content...
+{% endautoescape %}
+and also all the properties we defined.
+
+This is the safest way to render the html, when sending an email.
+Autoescape helps to protect against cross site scripting.
+When you turn it on, you are taking the responsibility to make sure it's safe.
+By the way, the token that you are generating is a one-use token.
+Once it is used, it can't be used again.
+
+{% autoescape off %}
+
+Hi {{ user.first_name }}
+
+Please clink on the link below to confirm your registration.
+http://{{domain}}{% url 'activate_page' uidb64=uid token=token %}
+
+{% endautoescape %}
+
+We also need to configure SMTP. That's in settings.py.
+
+For gmail, the settings are:
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_HOST_USER = 'agmailaddress'
+EMAIL_HOST_PASSWORD = 'agmailpassword'
+EMAIL_USE_TLS = 'true'
+
+587 is the right value for gmail.
+But there's an issue, because you can't use a normal gmail username/password 
+in this way. If you try, you will get this error:
+SMTPAuthenticationError
+Application-specific password required. Learn more at\n5.7.9  https://support.google.com/mail/?p=InvalidSecondFactor
+Go to that site and follow instructions to create a special password.
+Then you can set EMAIL_HOST_PASSWORD to that value.
+But this seems sketchy. I'm not sure it's legal to use your gmail account
+for automated email generation from a web app.
+
+The documentation indicates that using the application-specific password
+only needs to be done once, but using my normal gmail password after that
+doesn't work. I got this error:
+SMTPSenderRefused
+5.7.0 Authentication Required. Learn more at\n5.7.0  https://support.google.com/mail/?p=WantAuthError m10-20020a05620a220a00b006eeca296c00sm11425089qkh.104 - gsmtp
+
+Anyway, we still have to figure out how to get username & password out of
+settings.py, and read them from the database.
+
+Read this documentation
+https://docs.djangoproject.com/en/4.1/topics/email/
+
+Create a management app to hold the SMTP password
+-------------------------------------------------
+I decided to create a management app, so that I could store the 
+SMTP username and password in the database.
+
+python manage.py startapp management
+
+Then create the model:
+from django.db import models
+class Secret(models.Model):
+    secret_name = models.CharField(max_length=50, unique=True)
+    value = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.secret_name
+		
+Then create migrations and apply them.
+python manage.py makemigrations
+python manage.py migrate
+
+Now, add my gmail username and the app password that I created.
+
+I also need to add Secret to admin.py
+from .models import Secret
+admin.site.register(Secret)
+
+Now, I can send an email like this:
+
+	smtp_username_list = Secret.objects.filter(secret_name='smtp-username')
+	if len(smtp_username_list) == 0:
+		raise ObjectDoesNotExist("Could not find the secret, smtp-username")
+	smtp_username = smtp_username_list[0].value
+	print(f"Username is {smtp_username}")
+
+	smtp_password_list = Secret.objects.filter(secret_name='smtp-password')
+	if len(smtp_password_list) == 0:
+		raise ObjectDoesNotExist("Could not find the secret, smtp-password")
+	smtp_password = smtp_password_list[0].value
+	print(f"Password is {smtp_password}")
+
+	mail_subject = 'Test email'
+			# the properties are objects that can be used in the html template, 
+			# accounts/account_verification_email.html
+	message = "Test message"
+
+	send_mail(subject=mail_subject, message=message, from_email=smtp_username, recipient_list=["jeanlibera@gmail.com"], auth_user=smtp_username, auth_password=smtp_password)
+	
+69. Account Activation - Decode User PK & Activate the User | Expire Link
+-------------------------------------------------------------------------
+In the activate() function, we have to set the user.is_active to true.
+
+def activate(request:HttpRequest, uidb64, token):
+    print(f"Starting logout request handler")
+    print(f" uidb64={uidb64}, token={token}")
+    try:
+        # get the primary key of the user (uid = user id)
+        uid = urlsafe_base64_decode(uidb64)
+        user = Account._default_manager.get(pk=uid)
+    except(TypeError, ValueError, OverflowError, Account.DoesNotExist):
+        user = None
+
+    if (user is not None) and (default_token_generator.check_token(user, token)):
+        user.is_active = True
+        user.save()
+        print(f"Set {user.email} to Active")
+        messages.success(request, 'Congratulations! Your account is activated.')
+        return redirect('login_page')
+    else:
+        messages.error('Invalid activation link')
+        return redirect('register_page')
+
+In accounts.views.register(), after sending the email, we want to go to the login_page,
+but this time show a message about verification. So in register():
+
+	send_email(subject=mail_subject, message=message, recipient_list=[email])
+    return redirect('accounts/login/?command=verification&email=' + email)
+	
+And then modify login() to show it.
+
+On login.html, we can use {{ request }}. In particular
+* request.GET.command
+* request.GET.email
+
+  {% if request.GET.command == 'verification' %}
+    <div class="container mx-auto alert alert-info text-center" role="alert" style="max-width: 700px; margin-top:100px;">
+      Thank you for registering with us. We have sent a verification email to your email address [{{ request.GET.email }}].
+      <br><br>
+      Already verified? <a href="{% url 'login_page' %}">Login</a>
+    </div>
+  
+  {% else %}
+    <!-- normal HTML login form --> 
+  {% endif %}
+
+70. Dashboard
+-------------
+The dashboard will show the list of orders for a user.
+
+To create the dashboard, first add its url in accounts.urls
+
+urlpatterns = [
+    path('dashboard/', views.dashboard, name='dashboard_page'),
+]
+
+Because of this in the main urls.py of the django project,
+the actual url is /accounts/dashboard/
+
+urlpatterns = [
+    path('accounts/', include('accounts.urls')),
+]
+
+Add a reference to navbar.html
+ <a href="{% url 'dashboard_page' %}">Dashboard</a>
+ 
+Add a dashboard function, which only is accessible if you are logged in,
+and if not, redirects you to the login page.
+
+@login_required(login_url = 'login_page')
+def dashboard(request: HttpRequest):
+    return render(request, 'accounts/dashboard.html')
+	
+We are going to use dashboard.html from the template.
+
+First, add the block tags to dashboard.html:
+{% extends 'base.html' %}
+{% block content %} 
+
+{% endblock content %}
+
+Then copy the section content and paste it into dashboard.html.
+
+Switch the login view to go to dashboard_page when login succeeds
+            messages.success(request, "You are now logged in")
+            return redirect("dashboard_page")
+			
+Display the messages within the content block, with this:
+{% block content %} 
+<section class="section-conten padding-y bg">
+  {% include 'includes/alerts.html' %}
+  
+If you directly go here:
+http://127.0.0.1:8000/accounts/
+
+You get an error, 
+Page not found (404)
+Request Method:	GET
+Request URL:	http://127.0.0.1:8000/accounts/
+
+We can make the dashboard the default.
+To fix that, in accounts.urls, I added this:
+urlpatterns = [
+    path('dashboard/', views.dashboard, name='dashboard_page'),
+    path('', views.dashboard),
+]
+
+In the instructors project, he did this:
+    path('dashboard/', views.dashboard, name='dashboard_page'),
+    path('', views.dashboard, name='dashboard_page'),
+
+But I thought it was clearer for dashboard_page to get only one choice
+for reverse lookup.

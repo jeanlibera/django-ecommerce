@@ -17,9 +17,12 @@
       </li>
       </ul>
       <ul class="navbar-nav">
-      <li><a href="#" class="nav-link"> <i class="fa fa-envelope"></i> Email </a></li>
-      <li><a href="#" class="nav-link"> <i class="fa fa-phone"></i> Call us </a></li>
-    </ul> <!-- list-inline //  -->
+        {% if user.is_admin %}
+          <li><a href="/admin/" class="nav-link"> <i class="fa fa-user"></i> Admin </a></li>
+        {% endif %}
+        <li><a href="#" class="nav-link"> <i class="fa fa-envelope"></i> Email </a></li>
+        <li><a href="#" class="nav-link"> <i class="fa fa-phone"></i> Call us </a></li>
+      </ul> <!-- list-inline //  -->
     </div> <!-- navbar-collapse .// -->
   </div> <!-- container //  -->
   </nav>
@@ -79,8 +82,8 @@
           <div class="widget-header">
             <small class="title text-muted">Welcome {{ user.first_name }}</small>
             <div> 
-              <a href="{% url 'home_page' %}">Dashboard</a> <span class="dark-transp"> | </span>
-              <a href="{% url 'logout_page' %}">Log Out</a>
+              <a href="{% url 'dashboard_page' %}">Dashboard</a> <span class="dark-transp"> | </span>
+              <a href="{% url 'logout_action' %}">Log Out</a>
             </div>
           </div>
           {% endif %}

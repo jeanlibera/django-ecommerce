@@ -29,7 +29,7 @@ from . import views
 urlpatterns = [
     path('register/', views.register, name='register_page'),
     path('login/', views.login, name='login_page'),
-    path('logout/', views.logout, name='logout_page'),    
+    path('logout/', views.logout, name='logout_action'),    
 ]
 
 In greatkart.urls.py (in main django project):
@@ -415,7 +415,7 @@ We can add this te navbar.html:
     <small class="title text-muted">Welcome {{ user.first_name }}</small>
     <div> 
       <a href="{% url 'home_page' %}">Dashboard</a> <span class="dark-transp"> | </span>
-      <a href="{% url 'logout_page' %}">Log Out</a>
+      <a href="{% url 'logout_action' %}">Log Out</a>
     </div>
   </div>
   {% endif %}
