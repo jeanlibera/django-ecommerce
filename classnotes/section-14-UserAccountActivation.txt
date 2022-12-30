@@ -144,6 +144,11 @@ Now, I can send an email like this:
 
 	send_mail(subject=mail_subject, message=message, from_email=smtp_username, recipient_list=["jeanlibera@gmail.com"], auth_user=smtp_username, auth_password=smtp_password)
 	
+Another way to send email is to use Google API and OAuth2. Here is one post about it
+on stack overflow. https://stackoverflow.com/questions/37201250/sending-email-via-gmail-python
+https://django-oauth-toolkit.readthedocs.io/en/latest/getting_started.html
+    django-oauth-toolkit is a well-maintained library.
+	
 69. Account Activation - Decode User PK & Activate the User | Expire Link
 -------------------------------------------------------------------------
 In the activate() function, we have to set the user.is_active to true.
@@ -153,7 +158,7 @@ def activate(request:HttpRequest, uidb64, token):
     print(f" uidb64={uidb64}, token={token}")
     try:
         # get the primary key of the user (uid = user id)
-        uid = urlsafe_base64_decode(uidb64)
+        uid = urlsafe_base64_decode(uidb64).decode()
         user = Account._default_manager.get(pk=uid)
     except(TypeError, ValueError, OverflowError, Account.DoesNotExist):
         user = None
@@ -167,6 +172,13 @@ def activate(request:HttpRequest, uidb64, token):
     else:
         messages.error('Invalid activation link')
         return redirect('register_page')
+		
+Node that you have to do this to decode the base64 string:
+  uid = urlsafe_base64_decode(uidb64).decode()
+This code actually sets uid to a string which is the user.id.
+For example, if the user.id is 17, the type of uid is "17".
+That probably means that urlsafe_base64_encode converted 17 to a string
+  and that encoded that string.
 
 In accounts.views.register(), after sending the email, we want to go to the login_page,
 but this time show a message about verification. So in register():
